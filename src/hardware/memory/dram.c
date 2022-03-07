@@ -1,6 +1,6 @@
-#include "./src/hardware/cpu/register.h"
-#include "./src/hardware/cpu/mmu.h"
-#include "./src/hardware/memory/dram.h"
+#include "../cpu/register.h"
+#include "../cpu/mmu.h"
+#include "dram.h"
 
 #include <stdio.h>
 

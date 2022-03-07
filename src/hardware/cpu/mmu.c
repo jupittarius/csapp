@@ -1,5 +1,5 @@
-#include "./src/hardware/cpu/mmu.h"
-#include "./src/hardware//memory/dram.h"
+#include "mmu.h"
+#include "../memory/dram.h"
 
 // memory management unit
 
