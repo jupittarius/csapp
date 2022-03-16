@@ -2,7 +2,7 @@
 #include<stdlib.h>
 #include<stdint.h>
 #include<string.h>
-#include"src/headers/common.h"
+#include<headers/common.h>
 
 // covert string to int64_t
 uint64_t string2uint(const char *str)

@@ -2,7 +2,7 @@
 #include<stdio.h>
 #include<assert.h>
 
-#include"src/headers/common.h"
+#include<headers/common.h>
 
 // wrapper of stdio printf
 // controlled by the debug verbose bit set
