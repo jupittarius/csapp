@@ -1,15 +1,24 @@
 CC = /usr/bin/gcc
 CFLAGS = -Wall -g -O2 -Werror -std=gnu99 -Wno-unused-function
 
-EXECUTABLE = csapp
+EXE_HARDWARE = exe_hardware
 
 SRC_DIR = ./src
 
-CODE = ./src/hardware/memory/instruction.c ./src/disk/code.c ./src/hardware/memory/dram.c ./src/hardware/cpu/mmu.c  ./src/main.c
+# debug
+COMMON = $(SRC_DIR)/common/print.c $(SRC_DIR)/common/convert.c
 
-.PHONY: csapp
-main:
-	$(CC) $(CFLAGS) -I$(SRC_DIR) $(CODE) -o $(EXECUTABLE)
+# hardware
+CPU =$(SRC_DIR)/hardware/cpu/mmu.c $(SRC_DIR)/hardware/cpu/isa.c
+MEMORY = $(SRC_DIR)/hardware/memory/dram.c
 
-run:
-	./$(EXECUTABLE)
+# main
+MAIN_HARDWARE = $(SRC_DIR)/main_hardware.c
+
+.PHONY:hardware
+hardware:
+	$(CC) $(CFLAGS) -I$(SRC_DIR) $(COMMON) $(CPU) $(MEMORY) $(DISK) $(MAIN_HARDWARE) -o $(EXE_HARDWARE)
+	./$(EXE_HARDWARE)
+
+clean:
+	rm -f *.o *~ $(EXE_HARDWARE)
