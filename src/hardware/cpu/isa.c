@@ -133,16 +133,187 @@ static uint64_t decode_operand(od_t *od){
     return 0;
 }
 
-static void parse_instruction(const char *str, inst_t *inst, core_t *cr)
+// lookup table
+static const char *reg_name_list[72] = {
+    "%rax","%eax","%ax","%ah","%al",
+    "%rbx","%ebx","%bx","%bh","%bl",
+    "%rcx","%ecx","%cx","%ch","%cl",
+    "%rdx","%edx","%dx","%dh","%dl",
+    "%rsi","%esi","%si","%sih","%sil",
+    "%rdi","%edi","%di","%dih","%dil",
+    "%rbp","%ebp","%bp","%bph","%bpl",
+    "%rsp","%esp","%sp","%sph","%spl",
+    "%r8","%r8d","%r8w","%r8b",
+    "%r9","%r9d","%r9w","%r9b",
+    "%r10","%r10d","%r10w","%r10b",
+    "%r11","%r11d","%r11w","%r11b",
+    "%r12","%r12d","%r12w","%r12b",
+    "%r13","%r13d","%r13w","%r13b",
+    "%r14","%r14d","%r14w","%r14b",
+    "%r15","%r15d","%r15w","%r15b",
+};
+// reflection
+static uint64_t reflect_register(const char *reg_name, core_t *cr)
 {
+    // lookup table
+    reg_t *reg = &(cr->reg);
+    uint64_t reg_addr[72] = {
+        (uint64_t)&(reg->rax),(uint64_t)&(reg->eax),(uint64_t)&(reg->ax),(uint64_t)&(reg->ah),(uint64_t)&(reg->al),
+        (uint64_t)&(reg->rbx),(uint64_t)&(reg->ebx),(uint64_t)&(reg->bx),(uint64_t)&(reg->bh),(uint64_t)&(reg->bl),
+        (uint64_t)&(reg->rcx),(uint64_t)&(reg->ecx),(uint64_t)&(reg->cx),(uint64_t)&(reg->ch),(uint64_t)&(reg->cl),
+        (uint64_t)&(reg->rdx),(uint64_t)&(reg->edx),(uint64_t)&(reg->dx),(uint64_t)&(reg->dh),(uint64_t)&(reg->dl),
+        (uint64_t)&(reg->rsi),(uint64_t)&(reg->esi),(uint64_t)&(reg->si),(uint64_t)&(reg->sih),(uint64_t)&(reg->sil),
+        (uint64_t)&(reg->rdi),(uint64_t)&(reg->edi),(uint64_t)&(reg->di),(uint64_t)&(reg->dih),(uint64_t)&(reg->dil),
+        (uint64_t)&(reg->rbp),(uint64_t)&(reg->ebp),(uint64_t)&(reg->bp),(uint64_t)&(reg->bph),(uint64_t)&(reg->bpl),
+        (uint64_t)&(reg->rsp),(uint64_t)&(reg->esp),(uint64_t)&(reg->sp),(uint64_t)&(reg->sph),(uint64_t)&(reg->spl),
+        (uint64_t)&(reg->r8),(uint64_t)&(reg->r8d),(uint64_t)&(reg->r8w),(uint64_t)&(reg->r8b),
+        (uint64_t)&(reg->r9),(uint64_t)&(reg->r9d),(uint64_t)&(reg->r9w),(uint64_t)&(reg->r9b),
+        (uint64_t)&(reg->r10),(uint64_t)&(reg->r10d),(uint64_t)&(reg->r10w),(uint64_t)&(reg->r10b),
+        (uint64_t)&(reg->r11),(uint64_t)&(reg->r11d),(uint64_t)&(reg->r11w),(uint64_t)&(reg->r11b),
+        (uint64_t)&(reg->r12),(uint64_t)&(reg->r12d),(uint64_t)&(reg->r12w),(uint64_t)&(reg->r12b),
+        (uint64_t)&(reg->r13),(uint64_t)&(reg->r13d),(uint64_t)&(reg->r13w),(uint64_t)&(reg->r13b),
+        (uint64_t)&(reg->r14),(uint64_t)&(reg->r14d),(uint64_t)&(reg->r14w),(uint64_t)&(reg->r14b),
+        (uint64_t)&(reg->r15),(uint64_t)&(reg->r15d),(uint64_t)&(reg->r15w),(uint64_t)&(reg->r15b),
+    };
 
+    for (int i = 0; i < 72; ++ i)
+    {
+        if (strcmp(reg_name, reg_name_list[i]) == 0)
+        {
+            return reg_addr[i];
+        }
+    }
+    debug_printf(DEBUG_PARSEINST, "parse operand %s\n    cannot parse register %s\n", reg_name);
+    exit(0);
 }
 
+static void parse_instruction(const char *str, inst_t *inst, core_t *cr)
+{
+    char op_str[64] = {'\0'};
+    int op_len = 0;
+    char src_str[64] = {'\0'};
+    int src_len = 0;
+    char dst_str[64] = {'\0'};
+    int dst_len = 0;
+
+    char c;
+    int count_parentheses = 0;
+    int state = 0;
+
+    for (int i = 0; i < strlen(str); ++ i)
+    {
+        c = str[i];
+        if (c == '(' || c == ')')
+        {
+            count_parentheses ++;
+        }
+
+        if (state == 0 && c != ' ')
+        {
+            state = 1;
+        }
+        else if (state == 1 && c == ' ')
+        {
+            state = 2;
+            continue;
+        }
+        else if (state == 2 && c != ' ')
+        {
+            state = 3;
+        }
+        else if (state == 3 && c == ',' && (count_parentheses == 0 || count_parentheses == 2))
+        {
+            state = 4;
+            continue;
+        }
+        else if (state == 4 && c != ' ' && c != ',')
+        {
+            state = 5;
+        }
+        else if (state == 5 && c == ' ')
+        {
+            state = 6;
+            continue;
+        }
+
+        if (state == 1)
+        {
+            op_str[op_len] = c;
+            op_len ++;
+            continue;
+        }
+        else if (state == 3)
+        {
+            src_str[src_len] = c;
+            src_len ++;
+            continue;
+        }
+        else if (state == 5)
+        {
+            dst_str[dst_len] = c;
+            dst_len ++;
+            continue;
+        }
+    }
+
+    // op_str, src_str, dst_str
+    // strlen(str)
+    parse_operand(src_str, &(inst->src), cr);
+    parse_operand(dst_str, &(inst->dst), cr);
+
+    if (strcmp(op_str, "mov") == 0 || strcmp(op_str, "movq") == 0)
+    {
+        inst->op = INST_MOV;
+    }
+    else if (strcmp(op_str, "push") == 0)
+    {
+        inst->op = INST_PUSH;
+    }
+    else if (strcmp(op_str, "pop") == 0)
+    {
+        inst->op = INST_POP;
+    }
+    else if (strcmp(op_str, "leaveq") == 0)
+    {
+        inst->op = INST_LEAVE;
+    }
+    else if (strcmp(op_str, "callq") == 0)
+    {
+        inst->op = INST_CALL;
+    }
+    else if (strcmp(op_str, "retq") == 0)
+    {
+        inst->op = INST_RET;
+    }
+    else if (strcmp(op_str, "add") == 0)
+    {
+        inst->op = INST_ADD;
+    }
+    else if (strcmp(op_str, "sub") == 0)
+    {
+        inst->op = INST_SUB;
+    }
+    else if (strcmp(op_str, "cmpq") == 0)
+    {
+        inst->op = INST_CMP;
+    }
+    else if (strcmp(op_str, "jne") == 0)
+    {
+        inst->op = INST_JNE;
+    }
+    else if (strcmp(op_str, "jmp") == 0)
+    {
+        inst->op = INST_JMP;
+    }
+
+    debug_printf(DEBUG_PARSEINST, "[%s (%d)] [%s (%d)] [%s (%d)]\n", op_str, inst->op, src_str, inst->src.type, dst_str, inst->dst.type);
+}
+
+// parse the string assembly operand to od_t instance
 static void parse_operand(const char *str, od_t *od, core_t *cr)
 {
-    // str: assembly code string, e.g. mov $rsp,$rbp
-    // od: pointer to the address to store the parsed operand
-    // cr: active core processor
+    // str: the stripped compact operand string: turned to lower cases before parsing
+    // od: the data structure to store operand
     od->type = EMPTY;
     od->imm = 0;
     od->scal = 0;
@@ -152,24 +323,155 @@ static void parse_operand(const char *str, od_t *od, core_t *cr)
     int str_len = strlen(str);
     if (str_len == 0)
     {
-        // empty ooperand string
+        // empty operand
         return;
     }
     
+    // parse the operand string
     if (str[0] == '$')
     {
         // immediate number
         od->type = IMM;
-        // try to parse the immediate number
+        // try to parse the immediate number 64
+        // condition short cut would not bring extra burden
         od->imm = string2uint_range(str, 1, -1);
     }
     else if (str[0] == '%')
     {
         // register
+        od->type = REG;
+        // match the correct register name
+        od->reg1 = reflect_register(str, cr);
+        return;
     }
     else
     {
-        // memory access
+        // should be a memory format, but check it
+        // split imm(reg1,reg2,scal)
+        char imm[64] = {'\0'};
+        int imm_len = 0;
+        char reg1[8] = {'\0'};
+        int reg1_len = 0;
+        char reg2[8] = {'\0'};
+        int reg2_len = 0;
+        char scal[2] = {'\0'};
+        int scal_len = 0;
+
+        int count_parentheses = 0;
+        int count_comma = 0;
+        
+        // scan
+        for (int i = 0; i < str_len; ++ i)
+        {
+            
+            if (str[i] == '(' || str[i] == ')')
+            {
+                count_parentheses ++;
+                continue;
+            }
+            else if (str[i] == ',')
+            {
+                count_comma ++;
+                continue;
+            }
+            else 
+            {
+                // parse imm(reg1,reg2,scal)
+                if (count_parentheses == 0)
+                {
+                    // imm
+                    imm[imm_len] = str[i];
+                    imm_len ++;
+                }
+                else if (count_parentheses  == 1)
+                {
+                    if (count_comma  == 0)
+                    {
+                        // ...(reg1
+                        reg1[reg1_len] = str[i];
+                        reg1_len ++;
+                        continue;
+                    }
+                    else if (count_comma  == 1)
+                    {
+                        // ...(...,reg2
+                        reg2[reg2_len] = str[i];
+                        reg2_len ++;
+                        continue;
+                    }
+                    else if (count_comma  == 2)
+                    {
+                        // ...(...,...,scal
+                        scal[scal_len] = str[i];
+                        scal_len ++;
+                    }
+                }
+            }
+        }
+
+        // parse imm
+        if (imm_len > 0)
+        {
+            od->imm = string2uint(imm);
+            if (count_parentheses  == 0)
+            {
+                // imm
+                od->type = MEM_IMM;
+                return;
+            }
+        }
+
+        // parse scale
+        if (scal_len > 0)
+        {
+            od->imm = string2uint(scal);
+            if (od->scal != 1 && od->scal != 2 && od->scal != 4 && od->scal != 8)
+            {
+                debug_printf(DEBUG_PARSEINST, "parse operand %s\n    scale number %s must be 1,2,4,8\n", scal);
+                exit(0);
+            }
+        }
+
+        // parse reg1
+        if (reg1_len > 0)
+        {
+            od->reg1 = reflect_register(reg1, cr);
+        }
+
+        // parse reg2
+        if (reg2_len > 0)
+        {
+            od->reg2 = reflect_register(reg2, cr);
+        }
+
+        // set types
+        if (count_comma == 0)
+        {
+            // (r)
+            od->type = MEM_REG1;
+        }
+        else if (count_comma  == 1)
+        {
+            // (r,r)
+            od->type = MEM_REG1_REG2;
+        }
+        else if (count_comma  == 2)
+        {
+            if (reg1_len == 0)
+            {
+                // (,r,s)
+                od->type = MEM_REG2_SCAL;
+            }
+            else
+            {
+                // (r,r,s)
+                od->type = MEM_REG1_REG2_SCAL;
+            }            
+        }
+
+        // bias 1 for MEM_IMM_[.*]
+        if (imm_len > 0)
+        od->type ++;
     }
     
 }
@@ -214,15 +516,6 @@ static handler_t handler_table[NUM_INSTRTYPE] = {
     &jmp_handler,               // 10
 };
 
-// reset the condition flags
-// inline to reduce cost
-static inline void reset_cflags(core_t *cr)
-{
-    cr->CF = 0;
-    cr->ZF = 0;
-    cr->SF = 0;
-    cr->OF = 0;
-}
 
 // update the rip pointer to the next instruction sequentially
 static inline void next_rip(core_t *cr){
@@ -244,7 +537,7 @@ static void mov_handler(od_t *src_od, od_t *dst_od, core_t *cr){
         // dst: register
         *(uint64_t *) dst = *(uint64_t *) src;
         next_rip(cr);
-        reset_cflags(cr);
+        cr->flags.__cpu_flag_value = 0;
         return;
     }
 
@@ -257,7 +550,7 @@ static void mov_handler(od_t *src_od, od_t *dst_od, core_t *cr){
             cr
         );
         next_rip(cr);
-        reset_cflags(cr);
+        cr->flags.__cpu_flag_value = 0;
         return;
     }
 
@@ -268,7 +561,7 @@ static void mov_handler(od_t *src_od, od_t *dst_od, core_t *cr){
             va2pa(src, cr),
             cr);
         next_rip(cr);
-        reset_cflags(cr);
+        cr->flags.__cpu_flag_value = 0;
         return;
     }
 
@@ -277,7 +570,7 @@ static void mov_handler(od_t *src_od, od_t *dst_od, core_t *cr){
         // dst: register
         *(uint64_t *) dst = src;
         next_rip(cr);
-        reset_cflags(cr);
+        cr->flags.__cpu_flag_value = 0;
         return;
     }
 }
@@ -298,7 +591,7 @@ static void push_handler(od_t *src_od, od_t *dst_od, core_t *cr){
             cr
         );
         next_rip(cr);
-        reset_cflags(cr);
+        cr->flags.__cpu_flag_value = 0;
         return;
     }
 }
@@ -319,13 +612,25 @@ static void pop_handler(od_t *src_od, od_t *dst_od, core_t *cr)
         (cr->reg).rsp = (cr->reg).rsp + 8;
         *(uint64_t *)src = old_val;
         next_rip(cr);
-        reset_cflags(cr);
+        cr->flags.__cpu_flag_value = 0;
         return;
     }
 }
 
 static void leave_handler(od_t *src_od, od_t *dst_od, core_t *cr)
 {
+    // movq %rbp, %rsp
+    (cr->reg).rsp = (cr->reg).rbp;
+
+    // popq %rbp
+    uint64_t old_val = read64bits_dram(
+        va2pa((cr->reg).rsp, cr),
+        cr
+        );
+    (cr->reg).rsp = (cr->reg).rsp + 8;
+    (cr->reg).rbp = old_val;
+    next_rip(cr);
+    cr->flags.__cpu_flag_value = 0;
 }
 
 static void call_handler(od_t *src_od, od_t *dst_od, core_t *cr)
@@ -344,7 +649,7 @@ static void call_handler(od_t *src_od, od_t *dst_od, core_t *cr)
         );
     // jump to target function address
     cr->rip = src;
-    reset_cflags(cr);
+    cr->flags.__cpu_flag_value = 0;
 }
 
 static void ret_handler(od_t *src_od, od_t *dst_od, core_t *cr)
@@ -362,7 +667,7 @@ static void ret_handler(od_t *src_od, od_t *dst_od, core_t *cr)
     (cr->reg).rsp = (cr->reg).rsp + 8;
     // jump to return address
     cr->rip = ret_addr;
-    reset_cflags(cr);
+    cr->flags.__cpu_flag_value = 0;
 }
 
 static void add_handler(od_t *src_od, od_t *dst_od, core_t *cr)
@@ -376,7 +681,15 @@ static void add_handler(od_t *src_od, od_t *dst_od, core_t *cr)
         // dst: register (value: int64_t bit map)
         uint64_t val = *(uint64_t *)dst + *(uint64_t *)src;
 
+        int val_sign = ((val >> 63) & 0x1);
+        int src_sign = ((*(uint64_t *)src >> 63) & 0x1);
+        int dst_sign = ((*(uint64_t *)dst >> 63) & 0x1);
+
         // set condition flags
+        cr->flags.CF = (val < *(uint64_t *)src); // unsigned
+        cr->flags.ZF = (val == 0);
+        cr->flags.SF = val_sign;
+        cr->flags.OF = (src_sign == 0 && dst_sign == 0 && val_sign == 1) || (src_sign == 1 && dst_sign == 1 && val_sign == 0);
 
         // update registers
         *(uint64_t *)dst = val;
@@ -389,18 +702,93 @@ static void add_handler(od_t *src_od, od_t *dst_od, core_t *cr)
 
 static void sub_handler(od_t *src_od, od_t *dst_od, core_t *cr)
 {
+    uint64_t src = decode_operand(src_od);
+    uint64_t dst = decode_operand(dst_od);
+
+    if (src_od->type == IMM && dst_od->type == REG)
+    {
+        // src: register (value: int64_t bit map)
+        // dst: register (value: int64_t bit map)
+        // dst = dst - src = dst + (-src)
+        uint64_t val = *(uint64_t *)dst + (~src + 1);
+
+        int val_sign = ((val >> 63) & 0x1);
+        int src_sign = ((src >> 63) & 0x1);
+        int dst_sign = ((*(uint64_t *)dst >> 63) & 0x1);
+
+        // set condition flags
+        cr->flags.CF = (val > *(uint64_t *)dst); // unsigned
+
+        cr->flags.ZF = (val == 0);
+        cr->flags.SF = val_sign;
+
+        cr->flags.OF = (src_sign == 1 && dst_sign == 0 && val_sign == 1) || (src_sign == 0 && dst_sign == 1 && val_sign == 0);
+
+        // update registers
+        *(uint64_t *)dst = val;
+        // signed and unsigned value follow the same addition. e.g.
+        // 5 = 0000000000000101, 3 = 0000000000000011, -3 = 1111111111111101, 5 + (-3) = 0000000000000010
+        next_rip(cr);
+        return;
+    }
 }
 
 static void cmp_handler(od_t *src_od, od_t *dst_od, core_t *cr)
 {
+    uint64_t src = decode_operand(src_od);
+    uint64_t dst = decode_operand(dst_od);
+
+    if (src_od->type == IMM && dst_od->type >= MEM_IMM)
+    {
+        // src: register (value: int64_t bit map)
+        // dst: register (value: int64_t bit map)
+        // dst = dst - src = dst + (-src)
+        uint64_t dval = read64bits_dram(va2pa(dst, cr), cr);
+        uint64_t val = dval + (~src + 1);
+
+        int val_sign = ((val >> 63) & 0x1);
+        int src_sign = ((src >> 63) & 0x1);
+        int dst_sign = ((dval >> 63) & 0x1);
+
+        // set condition flags
+        cr->flags.CF = (val > dval); // unsigned
+
+        cr->flags.ZF = (val == 0);
+        cr->flags.SF = val_sign;
+
+        cr->flags.OF = (src_sign == 1 && dst_sign == 0 && val_sign == 1) || (src_sign == 0 && dst_sign == 1 && val_sign == 0);
+
+        // signed and unsigned value follow the same addition. e.g.
+        // 5 = 0000000000000101, 3 = 0000000000000011, -3 = 1111111111111101, 5 + (-3) = 0000000000000010
+        next_rip(cr);
+        return;
+    }
 }
 
 static void jne_handler(od_t *src_od, od_t *dst_od, core_t *cr)
 {
+    uint64_t src = decode_operand(src_od);
+
+    // src_od is actually a instruction memory address
+    // but we are interpreting it as an immediate number
+    if (cr->flags.ZF == 0)
+    {
+        // last instruction value != 0
+        cr->rip = src;
+    }
+    else
+    {
+        // last instruction value == 0
+        next_rip(cr);
+    }
+    cr->flags.__cpu_flag_value = 0;
 }
 
 static void jmp_handler(od_t *src_od, od_t *dst_od, core_t *cr)
 {
+    uint64_t src = decode_operand(src_od);
+    cr->rip = src;
+    cr->flags.__cpu_flag_value = 0;
 }
 
 // instruction cycle is implemented in CPU
@@ -408,7 +796,9 @@ static void jmp_handler(od_t *src_od, od_t *dst_od, core_t *cr)
 void instruction_cycle(core_t *cr)
 {
     // FETCH: get the instruction string by program counter
-    const char *inst_str = (const char *)cr->rip;
+    char inst_str[MAX_INSTRUCTION_CHAR + 10];
+    readinst_dram(va2pa(cr->rip, cr), inst_str, cr);
+
     debug_printf(DEBUG_INSTRUCTIONCYCLE, "%8lx    %s\n", cr->rip, inst_str);
 
     // DECODE: decode the run-time instruction operands
@@ -436,7 +826,7 @@ void print_register(core_t *cr)
         reg.rsi, reg.rdi, reg.rbp, reg.rsp);
     printf("rip = %16lx\n", cr->rip);
     printf("CF = %u\tZF = %u\tSF = %u\tOF = %u\n",
-        cr->CF, cr->ZF, cr->SF, cr->OF);
+        cr->flags.CF, cr->flags.ZF, cr->flags.SF, cr->flags.OF);
 }
 
 void print_stack(core_t *cr)
@@ -464,3 +854,70 @@ void print_stack(core_t *cr)
         va -= 8;
     }
 }
+
+void TestParsingInstruction()
+{
+    ACTIVE_CORE = 0x0;    
+    core_t *ac = (core_t *)&cores[ACTIVE_CORE];
+
+    char assembly[15][MAX_INSTRUCTION_CHAR] = {
+        "push   %rbp",              // 0
+        "mov    %rsp,%rbp",         // 1
+        "mov    %rdi,-0x18(%rbp)",  // 2
+        "mov    %rsi,-0x20(%rbp)",  // 3
+        "mov    -0x18(%rbp),%rdx",  // 4
+        "mov    -0x20(%rbp),%rax",  // 5
+        "add    %rdx,%rax",         // 6
+        "mov    %rax,-0x8(%rbp)",   // 7
+        "mov    -0x8(%rbp),%rax",   // 8
+        "pop    %rbp",              // 9
+        "retq",                     // 10
+        "mov    %rdx,%rsi",         // 11
+        "mov    %rax,%rdi",         // 12
+        "callq  0",                 // 13
+        "mov    %rax,-0x8(%rbp)",   // 14
+    };
+
+    inst_t inst;
+    for (int i = 0; i < 15; ++ i)
+    {
+        parse_instruction(assembly[i], &inst, ac);
+    }
+}
+
+void TestParsingOperand()
+{
+    ACTIVE_CORE = 0x0;    
+    core_t *ac = (core_t *)&cores[ACTIVE_CORE];
+
+    const char *strs[11] = {
+        "$0x1234",
+        "%rax",
+        "0xabcd",
+        "(%rsp)",
+        "0xabcd(%rsp)",
+        "(%rsp,%rbx)",
+        "0xabcd(%rsp,%rbx)",
+        "(,%rbx,8)",
+        "0xabcd(,%rbx,8)",
+        "(%rsp,%rbx,8)",
+        "0xabcd(%rsp,%rbx,8)",
+    };
+
+    printf("rax %p\n", &(ac->reg.rax));
+    printf("rsp %p\n", &(ac->reg.rsp));
+    printf("rbx %p\n", &(ac->reg.rbx));
+
+    for (int i = 0; i < 11; ++ i)
+    {
+        od_t od;
+        parse_operand(strs[i], &od, ac);
+
+        printf("\n%s\n", strs[i]);
+        printf("od enum type: %d\n", od.type);
+        printf("od imm: %lx\n", od.imm);
+        printf("od reg1: %lx\n", od.reg1);
+        printf("od reg2: %lx\n", od.reg2);
+        printf("od scal: %lx\n", od.scal);
+    }
+} 
